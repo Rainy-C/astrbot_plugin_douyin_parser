@@ -1,5 +1,6 @@
 import re
 import json
+import html
 from pathlib import Path
 
 import aiohttp
@@ -18,7 +19,7 @@ HEADERS = {
 }
 
 
-@register("douyin_parser", "小晨(Rainy-C)", "解析抖音分享链接并发送无水印视频", "1.0.0", "")
+@register("douyin_parser", "小晨(Rainy-C)", "解析抖音分享链接并发送无水印视频", "1.0.0", "https://github.com/Rainy-C/astrbot_plugin_douyin_parser")
 class DouyinParser(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -55,10 +56,11 @@ class DouyinParser(Star):
                 pass
 
     async def _parse_share_text(self, share_text: str) -> dict:
-        urls = re.findall(
-            r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
-            share_text,
-        )
+        # 处理不可见字符 + HTML 实体
+        cleaned = html.unescape(share_text).strip()
+
+        # 更宽松的链接匹配（只要 http(s) 开头，直到空白结束）
+        urls = re.findall(r"https?://\S+", cleaned)
         if not urls:
             raise ValueError("未找到有效的分享链接")
 
@@ -72,10 +74,10 @@ class DouyinParser(Star):
             share_url = f"https://www.iesdouyin.com/share/video/{video_id}"
 
             async with session.get(share_url) as resp:
-                html = await resp.text()
+                html_text = await resp.text()
 
         pattern = re.compile(r"window\._ROUTER_DATA\s*=\s*(.*?)</script>", re.DOTALL)
-        match = pattern.search(html)
+        match = pattern.search(html_text)
         if not match:
             raise ValueError("无法解析视频信息（HTML 无 ROUTER_DATA）")
 
